@@ -19,10 +19,10 @@ func main() {
   file_info, _ := file.Stat()
   print("filesize: ", file_info.Size(), "\n")
 
-  var semi_i int = 0
-  var semi [999]int
+  //var city_temp map[string]float32
   //var size int = 0
   var b [32]byte // ~128kb
+  var re []byte // rewind buffer
   var chunk int = 0
   for {
     _, err := file.Read(b[:])
@@ -32,27 +32,39 @@ func main() {
     if err != nil {
       log.Fatal(err) // exit
     }
-    //var r rune
-    print("staring loop.. \n")
+
+    //var temp float32
+    print("\n ..starting loop.. \n")
+    var x int = 0
     for i := 0; i < len(b); i++ {
       c := b[i]
-      fmt.Printf("char: %c\n", c)
-      //if (c == '\n') {
-      //}
+      // a bit too complex just simplify..
       if (c == ';') {
-        semi[semi_i] = i+chunk*32
-        semi_i++
-        fmt.Printf("i: %d\n", i+chunk*32)
+        // allocate the string extracted
+        var name string = ""
+        for ;x < i; x++ {
+          c = b[x]
+          // check for utf8 strings
+          if (c >> 5) == 0b110 {
+            d := b[x+1]
+            name += string([]byte{c, d})
+            //fmt.Printf("char: %s\n", name)
+          }
+          name += string([]byte{c})
+        }
+        fmt.Printf("name: %s\n", name)
+        // check if ; was last char
       }
-      // if first byte is utf expansion
-      if (c >> 5) == 0b110 {
-        r := b[i+1]
-        fmt.Printf("char: %s\n", []byte{c, r})
+      if (c == '\n') {
+        x = i+1
+        re = b[x:]
+        fmt.Printf("rewind: %s\n", re)
+        // rewind the last buffer '\n' was last the char
       }
     }
     chunk++
   }
 
   elapsed := time.Now().Sub(start)
-  print("\n", elapsed.Milliseconds())
+  fmt.Printf("\ntime:%dms", elapsed.Milliseconds())
 }
