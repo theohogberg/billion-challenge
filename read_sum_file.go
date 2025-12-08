@@ -5,9 +5,15 @@ import "time"
 import "log"
 import "os"
 import "fmt"
-import "strconv"
+//import "strconv"
 
-// new vim command cib/ciB
+
+const BUFF_SIZE = 665535  // ~65kb align with cpu cache to get faster
+                  //524287  // ~524kb use as test for large files
+
+// new useful vim commands:
+// cib to change parameter
+// ciB to change block
 func main() {
   start := time.Now()
 
@@ -20,31 +26,32 @@ func main() {
   file_info, _ := file.Stat()
   print("filesize: ", file_info.Size(), "\n")
 
-  var city_temp map[string]float64 = make(map[string]float64)
-  var buff  [32]byte // ~128kb
+  var city_temp map[string]string = make(map[string]string)
+  var buff  [BUFF_SIZE]byte
   var rest  []byte
+  //var ct_chan = make(chan map[string]string, 200)
   run := true
   for chunk := 0; run; chunk++ {
-    buff = [32]byte{} // <- I wasnt clearing the buffer
+    buff = [BUFF_SIZE]byte{} // <- I wasnt clearing the buffer
     // starting next chunk
-    fmt.Printf("\n@@@\nstarting chunk: %d\n@@@\n\n", chunk)
+    //fmt.Printf("\n@@@\nstarting chunk: %d\n@@@\n\n", chunk)
     // read the buffer
     n, _ := file.Read(buff[:])
-    if n < 32 {
+    if n < BUFF_SIZE {
       fmt.Printf("END BUFF:%s\n", buff)
       run = false
     }
 
     var next_city bool = true
-    var after_semi, after_nl int = 0, 0 // chunk*32+after_nl to get pos
+    var after_semi, after_nl int = 0, 0 // chunk*BUFF_SIZE+after_nl to get pos
     var city string
-    var temp float64
+    var temp string
     // add the rest from the last newline (no checks just add)
     loop_buff := append(rest, buff[:]...)
-    fmt.Println("rest:",string(rest[:]))
+    //fmt.Println("rest:",string(rest[:]))
     rest = []byte{}
-    fmt.Println("buff:",string(buff[:]))
-    fmt.Println("loop:",string(loop_buff[:]))
+    //fmt.Println("buff:",string(buff[:]))
+    //fmt.Println("loop:",string(loop_buff[:]))
 
     for i := 0; i < len(loop_buff); i++ {
       c := loop_buff[i]
@@ -63,7 +70,7 @@ func main() {
       newline:
         if (c == '\n') {
           after_nl = i+1
-          temp, _ = strconv.ParseFloat(string(loop_buff[after_semi:i]), 32)
+          temp = string(loop_buff[after_semi:i])
           next_city = true
           rest = loop_buff[after_nl:]
           // newline hit lets save
@@ -71,8 +78,11 @@ func main() {
         }
     }
   }
-  fmt.Printf("%v\n",city_temp)
+  //fmt.Printf("%v\n",city_temp)
 
   elapsed := time.Now().Sub(start)
   fmt.Printf("\ntime:%dms", elapsed.Milliseconds())
 }
+
+
+//func parse_input
