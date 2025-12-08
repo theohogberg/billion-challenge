@@ -7,7 +7,6 @@ import "os"
 import "fmt"
 //import "strconv"
 
-
 const BUFF_SIZE = 665535  // ~65kb align with cpu cache to get faster
                   //524287  // ~524kb use as test for large files
 
@@ -27,13 +26,23 @@ func main() {
   print("filesize: ", file_info.Size(), "\n")
 
   var city_temp map[string]string = make(map[string]string)
+  //var chunk_ch = make(chan map[string]string, 200)
+
+  // start parsing chunks
+  parse_chunk(file, city_temp, 0)
+
+  elapsed := time.Now().Sub(start)
+  fmt.Printf("\ntime:%dms", elapsed.Milliseconds())
+}
+
+
+func parse_chunk(file *os.File, city_temp map[string]string, offset int64) {
   var buff  [BUFF_SIZE]byte
   var rest  []byte
-  //var ct_chan = make(chan map[string]string, 200)
+  // do the loop
   run := true
-  for chunk := 0; run; chunk++ {
-    buff = [BUFF_SIZE]byte{} // <- I wasnt clearing the buffer
-    // starting next chunk
+  for run {
+    buff = [BUFF_SIZE]byte{} // clear buffer
     //fmt.Printf("\n@@@\nstarting chunk: %d\n@@@\n\n", chunk)
     // read the buffer
     n, _ := file.Read(buff[:])
@@ -78,11 +87,4 @@ func main() {
         }
     }
   }
-  //fmt.Printf("%v\n",city_temp)
-
-  elapsed := time.Now().Sub(start)
-  fmt.Printf("\ntime:%dms", elapsed.Milliseconds())
 }
-
-
-//func parse_input
