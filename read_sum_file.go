@@ -19,7 +19,9 @@ const BUFF_SIZE = //65535  // ~65kb/16bit buffer
 func main() {
   start := time.Now()
 
-	file, err := os.Open("weather_stations_full.csv")
+  // main file
+	file, err := os.Open("1brc/measurements.txt")
+	//file, err := os.Open("weather_stations.txt")
 	if err != nil {
 		log.Fatal(err) // exit
 	}
