@@ -5,6 +5,8 @@ import "time"
 import "log"
 import "os"
 import "fmt"
+import "sync"
+import "runtime"
 //import "strconv"
 
 
@@ -35,14 +37,25 @@ func main() {
   workers := file_info.Size()/BUFF_SIZE
   fmt.Printf("using: %d workers\n", workers)
 
+  var wg sync.WaitGroup
+  // one goroutine per chunk spawns >13k blocking reads -> out of OS threads
+  sem := make(chan struct{}, runtime.NumCPU())
   var i int64 = 0
   // make a array of city_temp strings here and use each
   // for every goroutine
-  for ; i < workers ; i++ {
+  for ; i <= workers ; i++ {
     var city_temp map[string]string = make(map[string]string)
     // start parsing chunks
-    go parse_chunk(file, city_temp, BUFF_SIZE*i)
+    wg.Add(1)
+    sem <- struct{}{}
+    go func(offset int64) {
+      defer wg.Done()
+      defer func() { <-sem }()
+      parse_chunk(file, city_temp, offset)
+    }(BUFF_SIZE*i)
   }
+  // main was exiting before any worker finished..
+  wg.Wait()
 
   elapsed := time.Now().Sub(start)
   fmt.Printf("\ntime:%dms\n", elapsed.Milliseconds())
