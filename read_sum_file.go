@@ -21,9 +21,12 @@ const BUFF_SIZE = //65535  // ~65kb/16bit buffer
 func main() {
   start := time.Now()
 
-  // main file
-	file, err := os.Open("1brc/measurements.txt")
-	//file, err := os.Open("weather_stations.txt")
+  // main file, override with first arg
+  path := "1brc/measurements.txt"
+  if len(os.Args) > 1 {
+    path = os.Args[1]
+  }
+	file, err := os.Open(path)
 	if err != nil {
 		log.Fatal(err) // exit
 	}
