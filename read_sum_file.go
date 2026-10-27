@@ -1,19 +1,19 @@
 package main
 
-//import "unicode/utf8"
 import "time"
 import "log"
 import "os"
 import "fmt"
 import "sync"
 import "runtime"
-//import "strconv"
-
 
 //align buffers with cpu cache to get faster
 const BUFF_SIZE = //65535  // ~65kb/16bit buffer
                   //262143 // ~262kb/18bit buffer
                   1048575// ~1048kb/20bit buffer
+
+// longest possible line: 100 byte name + ';' + "-99.9" + '\n'
+const MAX_LINE = 107
 
 // new useful vim commands:
 // cib to change parameter
@@ -44,8 +44,6 @@ func main() {
   // one goroutine per chunk spawns >13k blocking reads -> out of OS threads
   sem := make(chan struct{}, runtime.NumCPU())
   var i int64 = 0
-  // make a array of city_temp strings here and use each
-  // for every goroutine
   for ; i <= workers ; i++ {
     var city_temp map[string]string = make(map[string]string)
     // start parsing chunks
@@ -65,51 +63,40 @@ func main() {
 }
 
 
+// each chunk owns every line that *starts* inside [offset, offset+BUFF_SIZE).
+// read a bit past the end so the last line can be finished, and skip the
+// partial line at the start (the previous chunk owns it)
 func parse_chunk(file *os.File, city_temp map[string]string, offset int64) {
-  //fmt.Printf("\n@@@\nstarting chunk: %d\n@@@\n\n", chunk)
-
-  var buff  [BUFF_SIZE]byte
-  var rest  []byte
-  // fill the buffer
+  var buff [BUFF_SIZE+MAX_LINE]byte
   n, _ := file.ReadAt(buff[:], offset)
-  // only useful for last worker..
-  if n < BUFF_SIZE {
-    fmt.Printf("last bytes: %d\n", n)
+  data := buff[:n]
+
+  pos := 0
+  if offset != 0 {
+    // the line starting exactly at offset belongs to us only if
+    // the byte before it is a newline
+    var prev [1]byte
+    file.ReadAt(prev[:], offset-1)
+    if prev[0] != '\n' {
+      for pos < len(data) && data[pos] != '\n' {
+        pos++
+      }
+      pos++
+    }
   }
 
-  var next_city bool = true
-  var after_semi, after_nl int = 0, 0 // chunk*BUFF_SIZE+after_nl to get pos
-  var city string
-  var temp string
-  // add the rest from the last newline (no checks just add)
-  loop_buff := append(rest, buff[:]...)
-  //fmt.Println("rest:",string(rest[:]))
-  rest = []byte{}
-  //fmt.Println("buff:",string(buff[:]))
-  //fmt.Println("loop:",string(loop_buff[:]))
-
-  for i := 0; i < len(loop_buff); i++ {
-    c := loop_buff[i]
-    //if i == 0 { fmt.Println(string(c)) }
-    // check for next city. if so, check for semi otherwise newline
-    if next_city { goto semi } else { goto newline }
-
-    semi:
-      if (c == ';') {
-        after_semi = i+1
-        city = string(loop_buff[after_nl:i])
-        next_city = false
-      }
-    continue
-
-    newline:
-      if (c == '\n') {
-        after_nl = i+1
-        temp = string(loop_buff[after_semi:i])
-        next_city = true
-        rest = loop_buff[after_nl:]
-        // newline hit lets save
-        city_temp[city] = temp
-      }
+  for pos < len(data) && pos < BUFF_SIZE {
+    semi := pos
+    for data[semi] != ';' {
+      semi++
+    }
+    nl := semi+1
+    for nl < len(data) && data[nl] != '\n' {
+      nl++
+    }
+    city := string(data[pos:semi])
+    temp := string(data[semi+1:nl])
+    city_temp[city] = temp
+    pos = nl+1
   }
 }
