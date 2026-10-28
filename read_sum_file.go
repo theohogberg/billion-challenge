@@ -7,6 +7,8 @@ import "fmt"
 import "sync"
 import "runtime"
 import "strconv"
+import "sort"
+import "strings"
 
 //align buffers with cpu cache to get faster
 const BUFF_SIZE = //65535  // ~65kb/16bit buffer
@@ -44,8 +46,10 @@ func main() {
   }
 
   workers := file_info.Size()/BUFF_SIZE
-  fmt.Printf("using: %d workers\n", workers)
+  fmt.Fprintf(os.Stderr, "using: %d workers\n", workers)
 
+  results := make(map[string]*Stats)
+  var mu sync.Mutex
   var wg sync.WaitGroup
   // one goroutine per chunk spawns >13k blocking reads -> out of OS threads
   sem := make(chan struct{}, runtime.NumCPU())
@@ -59,13 +63,53 @@ func main() {
       defer wg.Done()
       defer func() { <-sem }()
       parse_chunk(file, city_temp, offset)
+      mu.Lock()
+      merge(results, city_temp)
+      mu.Unlock()
     }(BUFF_SIZE*i)
   }
   // main was exiting before any worker finished..
   wg.Wait()
 
+  print_results(results)
+
   elapsed := time.Now().Sub(start)
-  fmt.Printf("\ntime:%dms\n", elapsed.Milliseconds())
+  fmt.Fprintf(os.Stderr, "time:%dms\n", elapsed.Milliseconds())
+}
+
+func merge(into, from map[string]*Stats) {
+  for city, st := range from {
+    dst, ok := into[city]
+    if !ok {
+      into[city] = st
+      continue
+    }
+    if st.min < dst.min { dst.min = st.min }
+    if st.max > dst.max { dst.max = st.max }
+    dst.sum += st.sum
+    dst.count += st.count
+  }
+}
+
+// {Abha=-23.0/18.0/59.2, Abidjan=-16.2/26.0/67.3, ...}
+func print_results(results map[string]*Stats) {
+  cities := make([]string, 0, len(results))
+  for city := range results {
+    cities = append(cities, city)
+  }
+  sort.Strings(cities)
+
+  var sb strings.Builder
+  sb.WriteByte('{')
+  for i, city := range cities {
+    st := results[city]
+    if i > 0 {
+      sb.WriteString(", ")
+    }
+    fmt.Fprintf(&sb, "%s=%.1f/%.1f/%.1f", city, st.min, st.sum/float64(st.count), st.max)
+  }
+  sb.WriteString("}\n")
+  fmt.Print(sb.String())
 }
 
 
