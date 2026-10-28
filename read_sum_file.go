@@ -6,11 +6,17 @@ import "os"
 import "fmt"
 import "sync"
 import "runtime"
+import "strconv"
 
 //align buffers with cpu cache to get faster
 const BUFF_SIZE = //65535  // ~65kb/16bit buffer
                   //262143 // ~262kb/18bit buffer
                   1048575// ~1048kb/20bit buffer
+
+type Stats struct {
+  min, max, sum float64
+  count int64
+}
 
 // longest possible line: 100 byte name + ';' + "-99.9" + '\n'
 const MAX_LINE = 107
@@ -45,7 +51,7 @@ func main() {
   sem := make(chan struct{}, runtime.NumCPU())
   var i int64 = 0
   for ; i <= workers ; i++ {
-    var city_temp map[string]string = make(map[string]string)
+    city_temp := make(map[string]*Stats)
     // start parsing chunks
     wg.Add(1)
     sem <- struct{}{}
@@ -66,7 +72,7 @@ func main() {
 // each chunk owns every line that *starts* inside [offset, offset+BUFF_SIZE).
 // read a bit past the end so the last line can be finished, and skip the
 // partial line at the start (the previous chunk owns it)
-func parse_chunk(file *os.File, city_temp map[string]string, offset int64) {
+func parse_chunk(file *os.File, city_temp map[string]*Stats, offset int64) {
   var buff [BUFF_SIZE+MAX_LINE]byte
   n, _ := file.ReadAt(buff[:], offset)
   data := buff[:n]
@@ -95,8 +101,19 @@ func parse_chunk(file *os.File, city_temp map[string]string, offset int64) {
       nl++
     }
     city := string(data[pos:semi])
-    temp := string(data[semi+1:nl])
-    city_temp[city] = temp
+    temp, err := strconv.ParseFloat(string(data[semi+1:nl]), 64)
+    if err != nil {
+      log.Fatal(err)
+    }
+    st, ok := city_temp[city]
+    if !ok {
+      st = &Stats{min: temp, max: temp}
+      city_temp[city] = st
+    }
+    if temp < st.min { st.min = temp }
+    if temp > st.max { st.max = temp }
+    st.sum += temp
+    st.count++
     pos = nl+1
   }
 }
