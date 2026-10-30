@@ -1,6 +1,6 @@
 BIN := build/brc
 
-.PHONY: build run small clean
+.PHONY: build run small test clean
 
 build:
 	go build -o $(BIN) .
@@ -13,3 +13,6 @@ small: build
 
 clean:
 	rm -rf build
+
+test: build
+	./test.sh
