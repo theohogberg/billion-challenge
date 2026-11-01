@@ -16,9 +16,11 @@ const BUFF_SIZE = //65535  // ~65kb/16bit buffer
                   //262143 // ~262kb/18bit buffer
                   1048575// ~1048kb/20bit buffer
 
+// temperatures kept as integer tenths of a degree, summing floats
+// drifts (25.45 came out as 25.4499..)
 type Stats struct {
-  min, max, sum float64
-  count int64
+  min, max int64
+  sum, count int64
 }
 
 // longest possible line: 100 byte name + ';' + "-99.9" + '\n'
@@ -92,9 +94,10 @@ func merge(into, from map[string]*Stats) {
   }
 }
 
-// java's Math.round rounds half up (towards +inf), %.1f does not
+// java's Math.round rounds half up (towards +inf), %.1f does not.
+// v is in tenths
 func round(v float64) float64 {
-  return math.Floor(v*10+0.5) / 10
+  return math.Floor(v+0.5) / 10
 }
 
 // {Abha=-23.0/18.0/59.2, Abidjan=-16.2/26.0/67.3, ...}
@@ -112,7 +115,7 @@ func print_results(results map[string]*Stats) {
     if i > 0 {
       sb.WriteString(", ")
     }
-    fmt.Fprintf(&sb, "%s=%.1f/%.1f/%.1f", city, round(st.min), round(st.sum/float64(st.count)), round(st.max))
+    fmt.Fprintf(&sb, "%s=%.1f/%.1f/%.1f", city, round(float64(st.min)), round(float64(st.sum)/float64(st.count)), round(float64(st.max)))
   }
   sb.WriteString("}\n")
   fmt.Print(sb.String())
@@ -151,10 +154,11 @@ func parse_chunk(file *os.File, city_temp map[string]*Stats, offset int64) {
       nl++
     }
     city := string(data[pos:semi])
-    temp, err := strconv.ParseFloat(string(data[semi+1:nl]), 64)
+    f, err := strconv.ParseFloat(string(data[semi+1:nl]), 64)
     if err != nil {
       log.Fatal(err)
     }
+    temp := int64(math.Round(f*10))
     st, ok := city_temp[city]
     if !ok {
       st = &Stats{min: temp, max: temp}
