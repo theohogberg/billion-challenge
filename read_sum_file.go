@@ -9,6 +9,7 @@ import "runtime"
 import "strconv"
 import "sort"
 import "strings"
+import "math"
 
 //align buffers with cpu cache to get faster
 const BUFF_SIZE = //65535  // ~65kb/16bit buffer
@@ -91,6 +92,11 @@ func merge(into, from map[string]*Stats) {
   }
 }
 
+// java's Math.round rounds half up (towards +inf), %.1f does not
+func round(v float64) float64 {
+  return math.Floor(v*10+0.5) / 10
+}
+
 // {Abha=-23.0/18.0/59.2, Abidjan=-16.2/26.0/67.3, ...}
 func print_results(results map[string]*Stats) {
   cities := make([]string, 0, len(results))
@@ -106,7 +112,7 @@ func print_results(results map[string]*Stats) {
     if i > 0 {
       sb.WriteString(", ")
     }
-    fmt.Fprintf(&sb, "%s=%.1f/%.1f/%.1f", city, st.min, st.sum/float64(st.count), st.max)
+    fmt.Fprintf(&sb, "%s=%.1f/%.1f/%.1f", city, round(st.min), round(st.sum/float64(st.count)), round(st.max))
   }
   sb.WriteString("}\n")
   fmt.Print(sb.String())
