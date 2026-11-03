@@ -152,12 +152,12 @@ func parse_chunk(file *os.File, city_temp map[string]*Stats, offset int64) {
     for nl < len(data) && data[nl] != '\n' {
       nl++
     }
-    city := string(data[pos:semi])
     temp := parse_temp(data[semi+1:nl])
-    st, ok := city_temp[city]
+    // m[string(b)] doesn't allocate on lookup, only copy the name on insert
+    st, ok := city_temp[string(data[pos:semi])]
     if !ok {
       st = &Stats{min: temp, max: temp}
-      city_temp[city] = st
+      city_temp[string(data[pos:semi])] = st
     }
     if temp < st.min { st.min = temp }
     if temp > st.max { st.max = temp }
