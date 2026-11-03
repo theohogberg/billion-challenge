@@ -47,31 +47,30 @@ func main() {
     log.Fatal(err) // exit
   }
 
-  workers := file_info.Size()/BUFF_SIZE
+  // one long lived worker per cpu, each owning a contiguous range of
+  // the file and reusing its buffer + map (was 13k tiny tasks + merges)
+  size := file_info.Size()
+  workers := int64(runtime.NumCPU())
+  per_worker := size/workers + 1
   fmt.Fprintf(os.Stderr, "using: %d workers\n", workers)
 
-  results := make(map[string]*Stats)
-  var mu sync.Mutex
+  partials := make([]map[string]*Stats, workers)
   var wg sync.WaitGroup
-  // one goroutine per chunk spawns >13k blocking reads -> out of OS threads
-  sem := make(chan struct{}, runtime.NumCPU())
-  var i int64 = 0
-  for ; i <= workers ; i++ {
-    city_temp := make(map[string]*Stats)
-    // start parsing chunks
+  for i := int64(0); i < workers; i++ {
     wg.Add(1)
-    sem <- struct{}{}
-    go func(offset int64) {
+    go func(i int64) {
       defer wg.Done()
-      defer func() { <-sem }()
-      parse_chunk(file, city_temp, offset)
-      mu.Lock()
-      merge(results, city_temp)
-      mu.Unlock()
-    }(BUFF_SIZE*i)
+      start := i*per_worker
+      end := min(start+per_worker, size)
+      partials[i] = worker(file, start, end)
+    }(i)
   }
-  // main was exiting before any worker finished..
   wg.Wait()
+
+  results := make(map[string]*Stats)
+  for _, p := range partials {
+    merge(results, p)
+  }
 
   print_results(results)
 
@@ -121,29 +120,39 @@ func print_results(results map[string]*Stats) {
 }
 
 
-// each chunk owns every line that *starts* inside [offset, offset+BUFF_SIZE).
+func worker(file *os.File, start, end int64) map[string]*Stats {
+  city_temp := make(map[string]*Stats)
+  buff := make([]byte, BUFF_SIZE+MAX_LINE+1)
+  for off := start; off < end; off += BUFF_SIZE {
+    parse_chunk(file, buff, city_temp, off, min(BUFF_SIZE, end-off))
+  }
+  return city_temp
+}
+
+// each chunk owns every line that *starts* inside [offset, offset+limit).
 // read a bit past the end so the last line can be finished, and skip the
 // partial line at the start (the previous chunk owns it)
-func parse_chunk(file *os.File, city_temp map[string]*Stats, offset int64) {
-  var buff [BUFF_SIZE+MAX_LINE]byte
-  n, _ := file.ReadAt(buff[:], offset)
-  data := buff[:n]
-
+func parse_chunk(file *os.File, buff []byte, city_temp map[string]*Stats, offset, limit int64) {
   pos := 0
+  end := int(limit)
   if offset != 0 {
-    // the line starting exactly at offset belongs to us only if
-    // the byte before it is a newline
-    var prev [1]byte
-    file.ReadAt(prev[:], offset-1)
-    if prev[0] != '\n' {
-      for pos < len(data) && data[pos] != '\n' {
-        pos++
-      }
+    // start one byte early: skipping up to and including the first newline
+    // then also handles a line that starts exactly at offset
+    offset--
+    end++
+    n, _ := file.ReadAt(buff, offset)
+    buff = buff[:n]
+    for buff[pos] != '\n' {
       pos++
     }
+    pos++
+  } else {
+    n, _ := file.ReadAt(buff[1:], offset)
+    buff = buff[1:n+1]
   }
+  data := buff
 
-  for pos < len(data) && pos < BUFF_SIZE {
+  for pos < len(data) && pos < end {
     semi := pos
     for data[semi] != ';' {
       semi++
