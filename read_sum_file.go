@@ -6,7 +6,6 @@ import "os"
 import "fmt"
 import "sync"
 import "runtime"
-import "strconv"
 import "sort"
 import "strings"
 import "math"
@@ -154,11 +153,7 @@ func parse_chunk(file *os.File, city_temp map[string]*Stats, offset int64) {
       nl++
     }
     city := string(data[pos:semi])
-    f, err := strconv.ParseFloat(string(data[semi+1:nl]), 64)
-    if err != nil {
-      log.Fatal(err)
-    }
-    temp := int64(math.Round(f*10))
+    temp := parse_temp(data[semi+1:nl])
     st, ok := city_temp[city]
     if !ok {
       st = &Stats{min: temp, max: temp}
@@ -170,4 +165,24 @@ func parse_chunk(file *os.File, city_temp map[string]*Stats, offset int64) {
     st.count++
     pos = nl+1
   }
+}
+
+// always one fractional digit: -?\d{1,2}\.\d
+// so skip the dot and read it as tenths directly
+func parse_temp(b []byte) int64 {
+  neg := false
+  if b[0] == '-' {
+    neg = true
+    b = b[1:]
+  }
+  var v int64
+  for _, c := range b {
+    if c != '.' {
+      v = v*10 + int64(c-'0')
+    }
+  }
+  if neg {
+    return -v
+  }
+  return v
 }
