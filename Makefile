@@ -1,6 +1,6 @@
 BIN := build/brc
 
-.PHONY: build run small test clean
+.PHONY: build run small test profile clean
 
 build:
 	go build -o $(BIN) .
@@ -16,3 +16,7 @@ clean:
 
 test: build
 	./test.sh
+
+profile: build
+	./$(BIN) -cpuprofile build/cpu.prof 1brc/measurements.txt > /dev/null
+	go tool pprof -top build/brc build/cpu.prof | head -25

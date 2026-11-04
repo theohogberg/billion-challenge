@@ -9,6 +9,8 @@ import "runtime"
 import "sort"
 import "strings"
 import "math"
+import "flag"
+import "runtime/pprof"
 
 //align buffers with cpu cache to get faster
 const BUFF_SIZE = //65535  // ~65kb/16bit buffer
@@ -31,10 +33,22 @@ const MAX_LINE = 107
 func main() {
   start := time.Now()
 
+  cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
+  flag.Parse()
+
+  if *cpuprofile != "" {
+    f, err := os.Create(*cpuprofile)
+    if err != nil {
+      log.Fatal(err)
+    }
+    pprof.StartCPUProfile(f)
+    defer pprof.StopCPUProfile()
+  }
+
   // main file, override with first arg
   path := "1brc/measurements.txt"
-  if len(os.Args) > 1 {
-    path = os.Args[1]
+  if flag.NArg() > 0 {
+    path = flag.Arg(0)
   }
 	file, err := os.Open(path)
 	if err != nil {
