@@ -13,9 +13,10 @@ import "flag"
 import "runtime/pprof"
 
 //align buffers with cpu cache to get faster
-const BUFF_SIZE = //65535  // ~65kb/16bit buffer
-                  //262143 // ~262kb/18bit buffer
-                  1048575// ~1048kb/20bit buffer
+// measured on the full file (M1 Pro, 8 workers):
+//   128kb ~5.6s, 256kb ~5.3s, 1mb ~5.1s, 4mb ~5.05s
+// so it barely matters, the pread copy is the real cost
+const BUFF_SIZE = 4194303 // ~4mb/22bit buffer
 
 // temperatures kept as integer tenths of a degree, summing floats
 // drifts (25.45 came out as 25.4499..)
