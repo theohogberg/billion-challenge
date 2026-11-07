@@ -8,6 +8,7 @@ import "sync"
 import "runtime"
 import "flag"
 import "runtime/pprof"
+import "syscall"
 
 // new useful vim commands:
 // cib to change parameter
@@ -43,22 +44,27 @@ func main() {
     log.Fatal(err) // exit
   }
 
-  // one long lived worker per cpu, each owning a contiguous range of
-  // the file and reusing its buffer + map (was 13k tiny tasks + merges)
-  size := file_info.Size()
-  workers := int64(runtime.NumCPU())
+  size := int(file_info.Size())
+  data, err := syscall.Mmap(int(file.Fd()), 0, size, syscall.PROT_READ, syscall.MAP_SHARED)
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer syscall.Munmap(data)
+
+  // one long lived worker per cpu, each owning a contiguous range of the file
+  workers := runtime.NumCPU()
   per_worker := size/workers + 1
   fmt.Fprintf(os.Stderr, "using: %d workers\n", workers)
 
   partials := make([]map[string]*Stats, workers)
   var wg sync.WaitGroup
-  for i := int64(0); i < workers; i++ {
+  for i := 0; i < workers; i++ {
     wg.Add(1)
-    go func(i int64) {
+    go func(i int) {
       defer wg.Done()
-      start := i*per_worker
+      start := min(i*per_worker, size)
       end := min(start+per_worker, size)
-      partials[i] = worker(file, start, end)
+      partials[i] = worker(data, start, end)
     }(i)
   }
   wg.Wait()

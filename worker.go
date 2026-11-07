@@ -1,13 +1,5 @@
 package main
 
-import "os"
-
-//align buffers with cpu cache to get faster
-// measured on the full file (M1 Pro, 8 workers):
-//   128kb ~5.6s, 256kb ~5.3s, 1mb ~5.1s, 4mb ~5.05s
-// so it barely matters, the pread copy is the real cost
-const BUFF_SIZE = 4194303 // ~4mb/22bit buffer
-
 // temperatures kept as integer tenths of a degree, summing floats
 // drifts (25.45 came out as 25.4499..)
 type Stats struct {
@@ -15,42 +7,22 @@ type Stats struct {
   sum, count int64
 }
 
-// longest possible line: 100 byte name + ';' + "-99.9" + '\n'
-const MAX_LINE = 107
-
-func worker(file *os.File, start, end int64) map[string]*Stats {
+// the whole file is mmapped, a worker owns every line that *starts*
+// inside [start, end). no more buffers/pread, profile had ~57% in pread
+func worker(data []byte, start, end int) map[string]*Stats {
   city_temp := make(map[string]*Stats)
-  buff := make([]byte, BUFF_SIZE+MAX_LINE+1)
-  for off := start; off < end; off += BUFF_SIZE {
-    parse_chunk(file, buff, city_temp, off, min(BUFF_SIZE, end-off))
-  }
-  return city_temp
-}
-
-// each chunk owns every line that *starts* inside [offset, offset+limit).
-// read a bit past the end so the last line can be finished, and skip the
-// partial line at the start (the previous chunk owns it)
-func parse_chunk(file *os.File, buff []byte, city_temp map[string]*Stats, offset, limit int64) {
-  pos := 0
-  end := int(limit)
-  if offset != 0 {
+  pos := start
+  if start != 0 {
     // start one byte early: skipping up to and including the first newline
-    // then also handles a line that starts exactly at offset
-    offset--
-    end++
-    n, _ := file.ReadAt(buff, offset)
-    buff = buff[:n]
-    for buff[pos] != '\n' {
+    // then also handles a line that starts exactly at start
+    pos--
+    for data[pos] != '\n' {
       pos++
     }
     pos++
-  } else {
-    n, _ := file.ReadAt(buff[1:], offset)
-    buff = buff[1:n+1]
   }
-  data := buff
 
-  for pos < len(data) && pos < end {
+  for pos < end {
     semi := pos
     for data[semi] != ';' {
       semi++
@@ -72,6 +44,7 @@ func parse_chunk(file *os.File, buff []byte, city_temp map[string]*Stats, offset
     st.count++
     pos = nl+1
   }
+  return city_temp
 }
 
 // always one fractional digit: -?\d{1,2}\.\d
