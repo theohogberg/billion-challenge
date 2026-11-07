@@ -45,6 +45,11 @@ func main() {
   }
 
   size := int(file_info.Size())
+  if size == 0 {
+    // can't mmap an empty file
+    print_results(map[string]*Stats{})
+    return
+  }
   data, err := syscall.Mmap(int(file.Fd()), 0, size, syscall.PROT_READ, syscall.MAP_SHARED)
   if err != nil {
     log.Fatal(err)

@@ -16,10 +16,11 @@ func worker(data []byte, start, end int) map[string]*Stats {
     // start one byte early: skipping up to and including the first newline
     // then also handles a line that starts exactly at start
     pos--
-    for data[pos] != '\n' {
+    for pos < len(data) && data[pos] != '\n' {
       pos++
     }
     pos++
+    // no newline left in our range: previous worker owns all of it
   }
 
   for pos < end {

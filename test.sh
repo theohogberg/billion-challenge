@@ -6,7 +6,7 @@ fail=0
 
 go build -o $BIN . || exit 1
 
-for f in $SAMPLES/*.txt; do
+for f in $SAMPLES/*.txt testdata/*.txt; do
   expected="${f%.txt}.out"
   if diff -q <($BIN "$f" 2>/dev/null) "$expected" > /dev/null; then
     echo "ok   $(basename $f)"
