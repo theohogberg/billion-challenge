@@ -16,8 +16,8 @@ Generate `measurements.txt` with the scripts in the `1brc` submodule.
 ## Approach
 
 - split the file into one contiguous range per CPU
-- each worker reads its range in 4mb chunks with `ReadAt`, a chunk owns every
-  line that *starts* inside it
+- the file is mmapped, a worker owns every line that *starts* inside its range
+  (`ReadAt` in 4mb chunks before that, see history)
 - temperatures are parsed straight into integer tenths, no floats until output
 - per-worker `map[string]*Stats`, merged at the end
 
@@ -31,3 +31,10 @@ Full 1B rows, M1 Pro (8 cores), warm page cache.
 | parse temperature as int tenths            | 10.7s  |
 | no string alloc on map lookup              | 6.3s   |
 | one worker per CPU, reuse buffers          | 5.1s   |
+| mmap instead of ReadAt                     | 5.0s   |
+
+mmap barely moved it: the 57% that was in `pread` turned into page faults
+inside the worker loop. The parsing loop itself is the next thing to look at.
+
+`testdata/` has a few extra edge cases (empty file, no trailing newline, a
+single line) that `make test` runs together with the reference samples.
