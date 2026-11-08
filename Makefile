@@ -15,6 +15,7 @@ clean:
 	rm -rf build
 
 test: build
+	go test .
 	./test.sh
 
 profile: build
