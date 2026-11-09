@@ -1,5 +1,6 @@
 package main
 
+import "os"
 import "testing"
 
 func TestParseTemp(t *testing.T) {
@@ -56,5 +57,18 @@ func TestWorkerSplit(t *testing.T) {
         t.Fatalf("split at %d: %s = %+v, want %+v", split, city, g, w)
       }
     }
+  }
+}
+
+// ~100k lines, quicker to iterate on than the full file
+func BenchmarkWorker(b *testing.B) {
+  data, err := os.ReadFile("weather_stations_small.txt")
+  if err != nil {
+    b.Skip(err)
+  }
+  b.SetBytes(int64(len(data)))
+  b.ResetTimer()
+  for i := 0; i < b.N; i++ {
+    worker(data, 0, len(data))
   }
 }
