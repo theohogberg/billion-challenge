@@ -24,8 +24,12 @@ func worker(data []byte, start, end int) map[string]*Stats {
   }
 
   for pos < end {
+    // hash while looking for ';', one pass over the name instead of two
     semi := pos
+    h := uint64(FNV_OFFSET)
     for data[semi] != ';' {
+      h ^= uint64(data[semi])
+      h *= FNV_PRIME
       semi++
     }
     nl := semi+1
@@ -34,7 +38,7 @@ func worker(data []byte, start, end int) map[string]*Stats {
     }
     temp := parse_temp(data[semi+1:nl])
     name := data[pos:semi]
-    st := city_temp.get(name, hash(name))
+    st := city_temp.get(name, h)
     if temp < st.min { st.min = temp }
     if temp > st.max { st.max = temp }
     st.sum += temp
