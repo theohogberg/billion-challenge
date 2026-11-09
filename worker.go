@@ -10,7 +10,7 @@ type Stats struct {
 // the whole file is mmapped, a worker owns every line that *starts*
 // inside [start, end). no more buffers/pread, profile had ~57% in pread
 func worker(data []byte, start, end int) map[string]*Stats {
-  city_temp := make(map[string]*Stats)
+  city_temp := new_table()
   pos := start
   if start != 0 {
     // start one byte early: skipping up to and including the first newline
@@ -33,19 +33,15 @@ func worker(data []byte, start, end int) map[string]*Stats {
       nl++
     }
     temp := parse_temp(data[semi+1:nl])
-    // m[string(b)] doesn't allocate on lookup, only copy the name on insert
-    st, ok := city_temp[string(data[pos:semi])]
-    if !ok {
-      st = &Stats{min: temp, max: temp}
-      city_temp[string(data[pos:semi])] = st
-    }
+    name := data[pos:semi]
+    st := city_temp.get(name, hash(name))
     if temp < st.min { st.min = temp }
     if temp > st.max { st.max = temp }
     st.sum += temp
     st.count++
     pos = nl+1
   }
-  return city_temp
+  return city_temp.to_map()
 }
 
 // always one fractional digit: -?\d{1,2}\.\d
