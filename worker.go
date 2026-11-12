@@ -32,38 +32,38 @@ func worker(data []byte, start, end int) map[string]*Stats {
       h *= FNV_PRIME
       semi++
     }
-    nl := semi+1
-    for nl < len(data) && data[nl] != '\n' {
-      nl++
-    }
-    temp := parse_temp(data[semi+1:nl])
+    temp, next := parse_temp(data, semi+1)
     name := data[pos:semi]
     st := city_temp.get(name, h)
     if temp < st.min { st.min = temp }
     if temp > st.max { st.max = temp }
     st.sum += temp
     st.count++
-    pos = nl+1
+    pos = next
   }
   return city_temp.to_map()
 }
 
 // always one fractional digit: -?\d{1,2}\.\d
-// so skip the dot and read it as tenths directly
-func parse_temp(b []byte) int64 {
-  neg := false
-  if b[0] == '-' {
-    neg = true
-    b = b[1:]
+// so there are only 4 shapes, read them directly as tenths. returns the
+// temperature and the start of the next line, no separate '\n' scan needed
+func parse_temp(data []byte, i int) (int64, int) {
+  neg := data[i] == '-'
+  if neg {
+    i++
   }
   var v int64
-  for _, c := range b {
-    if c != '.' {
-      v = v*10 + int64(c-'0')
-    }
+  if data[i+1] == '.' {
+    // d.d
+    v = int64(data[i]-'0')*10 + int64(data[i+2]-'0')
+    i += 3
+  } else {
+    // dd.d
+    v = int64(data[i]-'0')*100 + int64(data[i+1]-'0')*10 + int64(data[i+3]-'0')
+    i += 4
   }
   if neg {
-    return -v
+    v = -v
   }
-  return v
+  return v, i + 1
 }

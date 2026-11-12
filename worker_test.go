@@ -14,8 +14,12 @@ func TestParseTemp(t *testing.T) {
     "-0.1":  -1,
   }
   for in, want := range cases {
-    if got := parse_temp([]byte(in)); got != want {
+    got, next := parse_temp([]byte(in+"\n"), 0)
+    if got != want {
       t.Errorf("parse_temp(%q) = %d, want %d", in, got, want)
+    }
+    if next != len(in)+1 {
+      t.Errorf("parse_temp(%q) next = %d, want %d", in, next, len(in)+1)
     }
   }
 }
