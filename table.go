@@ -3,7 +3,8 @@ package main
 import "bytes"
 
 // rules say at most 10k unique stations, keep the load factor low
-const TABLE_SIZE = 1 << 16
+const TABLE_BITS = 16
+const TABLE_SIZE = 1 << TABLE_BITS
 const TABLE_MASK = TABLE_SIZE - 1
 
 const FNV_OFFSET = 14695981039346656037
@@ -26,17 +27,10 @@ func new_table() *table {
   return &table{entries: make([]entry, TABLE_SIZE)}
 }
 
-func hash(name []byte) uint64 {
-  h := uint64(FNV_OFFSET)
-  for _, c := range name {
-    h ^= uint64(c)
-    h *= FNV_PRIME
-  }
-  return h
-}
-
 func (t *table) get(name []byte, h uint64) *Stats {
-  i := h & TABLE_MASK
+  // top bits: with word at a time hashing the low bits of h only depend
+  // on the first couple of bytes of each word
+  i := h >> (64 - TABLE_BITS)
   for {
     e := &t.entries[i]
     if e.name == nil {

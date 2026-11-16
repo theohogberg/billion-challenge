@@ -1,10 +1,28 @@
 package main
 
+import "encoding/binary"
+import "math/bits"
+
 // temperatures kept as integer tenths of a degree, summing floats
 // drifts (25.45 came out as 25.4499..)
 type Stats struct {
   min, max int64
   sum, count int64
+}
+
+const ONES  = 0x0101010101010101
+const HIGHS = 0x8080808080808080
+const SEMIS = 0x3B3B3B3B3B3B3B3B // ';' in every byte
+
+// little endian 8 byte load, zero padded past the end of data so names
+// near the end hash the same as everywhere else
+func load8(data []byte, i int) uint64 {
+  if i+8 <= len(data) {
+    return binary.LittleEndian.Uint64(data[i:])
+  }
+  var buf [8]byte
+  copy(buf[:], data[i:])
+  return binary.LittleEndian.Uint64(buf[:])
 }
 
 // the whole file is mmapped, a worker owns every line that *starts*
@@ -24,13 +42,25 @@ func worker(data []byte, start, end int) map[string]*Stats {
   }
 
   for pos < end {
-    // hash while looking for ';', one pass over the name instead of two
+    // SWAR: look for ';' 8 bytes at a time and hash whole words
     semi := pos
     h := uint64(FNV_OFFSET)
-    for data[semi] != ';' {
-      h ^= uint64(data[semi])
-      h *= FNV_PRIME
-      semi++
+    for {
+      w := load8(data, semi)
+      x := w ^ SEMIS
+      found := (x - ONES) &^ x & HIGHS
+      if found != 0 {
+        // lowest flagged byte is the first ';' (false positives only
+        // show up above a real match)
+        k := bits.TrailingZeros64(found) >> 3
+        if k > 0 {
+          h = (h ^ (w & (1<<(k*8) - 1))) * FNV_PRIME
+        }
+        semi += k
+        break
+      }
+      h = (h ^ w) * FNV_PRIME
+      semi += 8
     }
     temp, next := parse_temp(data, semi+1)
     name := data[pos:semi]
