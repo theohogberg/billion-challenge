@@ -9,6 +9,9 @@ import "runtime"
 import "flag"
 import "runtime/pprof"
 import "syscall"
+import "sync/atomic"
+
+const CHUNK_SIZE = 16 << 20
 
 // new useful vim commands:
 // cib to change parameter
@@ -56,20 +59,31 @@ func main() {
   }
   defer syscall.Munmap(data)
 
-  // one long lived worker per cpu, each owning a contiguous range of the file
+  // workers pull fixed size chunks off a counter instead of getting
+  // size/NumCPU each, so slower (efficiency) cores just take fewer chunks.
+  // only ~1% on the M1 Pro (2.95s -> 2.91s), more workers than cpus is
+  // slower (12: 2.97s, 16: 3.05s), 6 is 3.29s
   workers := runtime.NumCPU()
-  per_worker := size/workers + 1
-  fmt.Fprintf(os.Stderr, "using: %d workers\n", workers)
+  chunks := (size + CHUNK_SIZE - 1) / CHUNK_SIZE
+  fmt.Fprintf(os.Stderr, "using: %d workers, %d chunks\n", workers, chunks)
 
+  var next atomic.Int64
   partials := make([]map[string]*Stats, workers)
   var wg sync.WaitGroup
   for i := 0; i < workers; i++ {
     wg.Add(1)
     go func(i int) {
       defer wg.Done()
-      start := min(i*per_worker, size)
-      end := min(start+per_worker, size)
-      partials[i] = worker(data, start, end)
+      t := new_table()
+      for {
+        c := int(next.Add(1) - 1)
+        if c >= chunks {
+          break
+        }
+        start := c*CHUNK_SIZE
+        process(data, t, start, min(start+CHUNK_SIZE, size))
+      }
+      partials[i] = t.to_map()
     }(i)
   }
   wg.Wait()

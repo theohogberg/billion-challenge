@@ -28,7 +28,12 @@ func load8(data []byte, i int) uint64 {
 // the whole file is mmapped, a worker owns every line that *starts*
 // inside [start, end). no more buffers/pread, profile had ~57% in pread
 func worker(data []byte, start, end int) map[string]*Stats {
-  city_temp := new_table()
+  t := new_table()
+  process(data, t, start, end)
+  return t.to_map()
+}
+
+func process(data []byte, city_temp *table, start, end int) {
   pos := start
   if start != 0 {
     // start one byte early: skipping up to and including the first newline
@@ -71,7 +76,6 @@ func worker(data []byte, start, end int) map[string]*Stats {
     st.count++
     pos = next
   }
-  return city_temp.to_map()
 }
 
 // always one fractional digit: -?\d{1,2}\.\d
