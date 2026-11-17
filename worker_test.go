@@ -1,6 +1,7 @@
 package main
 
 import "os"
+import "strings"
 import "testing"
 
 func TestParseTemp(t *testing.T) {
@@ -74,5 +75,25 @@ func BenchmarkWorker(b *testing.B) {
   b.ResetTimer()
   for i := 0; i < b.N; i++ {
     worker(data, 0, len(data))
+  }
+}
+
+// names hashed with the zero padded load at the very end of the data
+// must land in the same slot as the same name elsewhere
+func TestHashConsistentAtEnd(t *testing.T) {
+  long := strings.Repeat("Ö", 50) // 100 bytes, max allowed name length
+  names := []string{"A", "Oulu", "Abcdefgh", "Abcdefghi", "Las Palmas de Gran Canaria", long}
+  for _, name := range names {
+    for _, last := range []string{"\n", ""} {
+      data := []byte(name + ";1.0\n" + "x;0.0\n" + name + ";-3.0" + last)
+      got := worker(data, 0, len(data))
+      st, ok := got[name]
+      if len(got) != 2 || !ok {
+        t.Fatalf("%q: got %d stations, want 2", name, len(got))
+      }
+      if st.count != 2 || st.min != -30 || st.max != 10 {
+        t.Errorf("%q: %+v", name, *st)
+      }
+    }
   }
 }
