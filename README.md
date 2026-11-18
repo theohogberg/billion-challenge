@@ -40,6 +40,7 @@ Full 1B rows, M1 Pro (8 cores), warm page cache.
 | custom hash table                          | 4.3s   |
 | hash while scanning for `;`                | 3.8s   |
 | fixed shape temperature parsing            | 3.1s   |
+| SWAR `;` search, word at a time hashing    | 2.9s   |
 
 mmap barely moved it: the 57% that was in `pread` turned into page faults
 inside the worker loop. The parsing loop itself was the next thing to look at.
