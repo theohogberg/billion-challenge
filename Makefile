@@ -13,6 +13,7 @@ small: build
 
 clean:
 	rm -rf build
+	go clean -testcache
 
 test: build
 	go test .
