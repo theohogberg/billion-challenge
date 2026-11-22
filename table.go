@@ -2,7 +2,7 @@ package main
 
 import "bytes"
 
-// rules say at most 10k unique stations, keep the load factor low
+// rules say at most 10k unique stations, 64k slots keeps load factor < 0.16
 const TABLE_BITS = 16
 const TABLE_SIZE = 1 << TABLE_BITS
 const TABLE_MASK = TABLE_SIZE - 1
