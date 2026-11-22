@@ -11,7 +11,7 @@ import "runtime/pprof"
 import "syscall"
 import "sync/atomic"
 
-const CHUNK_SIZE = 16 << 20
+const CHUNK_SIZE = 16 << 20 // 16mb
 
 // new useful vim commands:
 // cib to change parameter
