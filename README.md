@@ -1,4 +1,4 @@
-# billion-challenge
+# billion-challenge (Go)
 
 My Go take on the [One Billion Row Challenge](https://github.com/gunnarmorling/1brc):
 read a 1B line `station;temperature` file and print min/mean/max per
