@@ -9,6 +9,7 @@ make            # build to build/brc
 make test       # compare against the reference samples in 1brc/
 make run        # full 1B row file (1brc/measurements.txt, ~13GB)
 make profile    # cpu profile of a full run
+make bench      # worker benchmark on the 100k line sample
 ```
 
 Generate `measurements.txt` with the scripts in the `1brc` submodule.
